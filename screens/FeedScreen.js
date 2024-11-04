@@ -1,377 +1,473 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   FlatList,
-  Text,
-  ActivityIndicator,
   Image,
   TextInput,
-  Button,
-  TouchableOpacity,
   StyleSheet,
-  Dimensions,
+  TouchableOpacity,
+  ActivityIndicator,
+  Text,
+  Modal,
+  Keyboard,
+  TouchableWithoutFeedback,
+  SafeAreaView,
 } from "react-native";
-import axios from "axios";
-import Icon from "react-native-vector-icons/FontAwesome";
+import { Ionicons, FontAwesome, AntDesign, Feather } from "@expo/vector-icons";
 
-const { width } = Dimensions.get("window"); // Get screen width
-
-const API_BASE_URL = "https://jsonplaceholder.typicode.com";
-
-const getRandomLikes = () => Math.floor(Math.random() * 1000); // Random likes between 0-999
+// Simulate API call
+const fetchPostsFromApi = async (page, pageSize) => {
+  const simulatedPosts = Array.from({ length: pageSize }, (_, i) => ({
+    id: (page * pageSize + i + 1).toString(),
+    imageUrl: `https://picsum.photos/300?random=${page * pageSize + i + 1}`,
+    likes: Math.floor(Math.random() * 100),
+    isLiked: false,
+  }));
+  return simulatedPosts;
+};
 
 const FeedScreen = () => {
   const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [commentText, setCommentText] = useState("");
-  const [replyText, setReplyText] = useState("");
-  const [showComments, setShowComments] = useState({});
-  const [showReplies, setShowReplies] = useState({});
+  const [page, setPage] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isEndReached, setIsEndReached] = useState(false);
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState("");
+  const [replyTo, setReplyTo] = useState(null);
+  const [theme, setTheme] = useState("light");
 
-  const loadPosts = async (pageNumber) => {
-    setLoading(true);
+  const pageSize = 9;
+
+  useEffect(() => {
+    loadMorePosts();
+  }, []);
+
+  const loadMorePosts = async () => {
+    if (isLoading || isEndReached) return;
+
+    setIsLoading(true);
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/posts?_page=${pageNumber}&_limit=10`
-      );
-      const postsWithImages = response.data.map((post) => ({
-        ...post,
-        imageUrl: `https://picsum.photos/200/150?random=${post.id}`,
-        likes: getRandomLikes(),
-        liked: false,
-        comments: [], // Initialize comments as an empty array
-      }));
-
-      setPosts((prevPosts) =>
-        pageNumber === 1 ? postsWithImages : [...prevPosts, ...postsWithImages]
-      );
+      const newPosts = await fetchPostsFromApi(page, pageSize);
+      if (newPosts.length === 0) {
+        setIsEndReached(true);
+      } else {
+        setPosts((prevPosts) => [...prevPosts, ...newPosts]);
+        setPage((prevPage) => prevPage + 1);
+      }
     } catch (error) {
-      console.error("Error loading posts:", error);
+      console.error("Failed to fetch posts:", error);
     } finally {
-      setLoading(false);
-      setIsRefreshing(false);
+      setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadPosts(page);
-  }, [page]);
-
-  const toggleLike = (post) => {
-    const updatedPosts = posts.map((p) => {
-      if (p.id === post.id) {
-        const newLikes = post.liked ? post.likes - 1 : post.likes + 1;
-        return { ...p, liked: !p.liked, likes: newLikes };
-      }
-      return p;
-    });
-    setPosts(updatedPosts);
+  const openModal = (post) => {
+    setSelectedPost(post);
+    setModalVisible(true);
   };
 
-  const addComment = (postId) => {
-    if (!commentText.trim()) return;
-    const updatedPosts = posts.map((post) => {
-      if (post.id === postId) {
-        const newComment = { id: Date.now(), text: commentText, replies: [] };
-        return { ...post, comments: [...post.comments, newComment] };
-      }
-      return post;
-    });
-    setPosts(updatedPosts);
-    setCommentText("");
+  const addComment = () => {
+    if (newComment.trim()) {
+      const comment = {
+        id: Date.now().toString(),
+        text: newComment.trim(),
+        likes: 0,
+        isLiked: false,
+        replies: [],
+      };
+      setComments((prevComments) => [...prevComments, comment]);
+      setNewComment("");
+      setReplyTo(null);
+      Keyboard.dismiss();
+    }
   };
 
-  const deleteComment = (postId, commentId) => {
-    const updatedPosts = posts.map((post) => {
-      if (post.id === postId) {
-        return {
-          ...post,
-          comments: post.comments.filter((comment) => comment.id !== commentId),
-        };
-      }
-      return post;
-    });
-    setPosts(updatedPosts);
+  const addReply = (commentId) => {
+    if (newComment.trim()) {
+      const reply = {
+        id: Date.now().toString(),
+        text: newComment.trim(),
+        likes: 0,
+        isLiked: false,
+      };
+      setComments((prevComments) =>
+        prevComments.map((comment) =>
+          comment.id === commentId
+            ? { ...comment, replies: [...comment.replies, reply] }
+            : comment
+        )
+      );
+      setNewComment("");
+      setReplyTo(null);
+      Keyboard.dismiss();
+    }
   };
 
-  const toggleCommentSection = (postId) => {
-    setShowComments((prevState) => ({
-      ...prevState,
-      [postId]: !prevState[postId],
-    }));
+  const deleteComment = (id) => {
+    setComments((prevComments) =>
+      prevComments.filter((comment) => comment.id !== id)
+    );
   };
 
-  const addReply = (postId, commentId) => {
-    if (!replyText.trim()) return;
-    const updatedPosts = posts.map((post) => {
-      if (post.id === postId) {
-        const updatedComments = post.comments.map((comment) => {
-          if (comment.id === commentId) {
-            const newReply = { id: Date.now(), text: replyText };
-            return { ...comment, replies: [...comment.replies, newReply] };
-          }
-          return comment;
-        });
-        return { ...post, comments: updatedComments };
-      }
-      return post;
-    });
-    setPosts(updatedPosts);
-    setReplyText("");
-    setShowReplies((prevState) => ({ ...prevState, [commentId]: false }));
-  };
-
-  const toggleReplySection = (commentId) => {
-    setShowReplies((prevState) => ({
-      ...prevState,
-      [commentId]: !prevState[commentId],
-    }));
-  };
-
-  const deleteReply = (postId, commentId, replyId) => {
-    const updatedPosts = posts.map((post) => {
-      if (post.id === postId) {
-        const updatedComments = post.comments.map((comment) => {
-          if (comment.id === commentId) {
-            return {
+  const deleteReply = (commentId, replyId) => {
+    setComments((prevComments) =>
+      prevComments.map((comment) =>
+        comment.id === commentId
+          ? {
               ...comment,
               replies: comment.replies.filter((reply) => reply.id !== replyId),
-            };
-          }
-          return comment;
-        });
-        return { ...post, comments: updatedComments };
-      }
-      return post;
-    });
-    setPosts(updatedPosts);
+            }
+          : comment
+      )
+    );
   };
 
-  const renderReply = (reply, postId, commentId) => (
-    <View key={reply.id} style={styles.reply}>
-      <View style={styles.replyContent}>
-        <Icon
-          name="user-circle"
-          size={20}
-          color="#ccc"
-          style={styles.replyIcon}
-        />
-        <Text style={styles.replyText}>{reply.text}</Text>
-      </View>
-      <TouchableOpacity
-        onPress={() => deleteReply(postId, commentId, reply.id)}
-      >
-        <Icon name="trash" size={16} color="red" />
-      </TouchableOpacity>
-    </View>
-  );
+  const togglePostLike = (postId) => {
+    setPosts((prevPosts) =>
+      prevPosts.map((post) =>
+        post.id === postId
+          ? {
+              ...post,
+              isLiked: !post.isLiked,
+              likes: post.isLiked ? post.likes - 1 : post.likes + 1,
+            }
+          : post
+      )
+    );
 
-  const renderComment = (comment, postId) => (
-    <View key={comment.id} style={styles.comment}>
-      <View style={styles.commentContent}>
-        <Icon
-          name="user-circle"
-          size={24}
-          color="#ccc"
-          style={styles.commentIcon}
-        />
-        <Text style={styles.commentText}>{comment.text}</Text>
-      </View>
-      <TouchableOpacity onPress={() => deleteComment(postId, comment.id)}>
-        <Icon name="trash" size={16} color="red" />
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => toggleReplySection(comment.id)}>
-        <Text style={styles.replyText}>Reply</Text>
-      </TouchableOpacity>
-      {showReplies[comment.id] && (
-        <View style={styles.replyContainer}>
-          <TextInput
-            style={styles.replyInput}
-            placeholder="Add a reply..."
-            value={replyText}
-            onChangeText={setReplyText}
-          />
-          <Button title="Post" onPress={() => addReply(postId, comment.id)} />
-          {comment.replies.map((reply) =>
-            renderReply(reply, postId, comment.id)
-          )}
-        </View>
-      )}
-    </View>
-  );
+    if (selectedPost && selectedPost.id === postId) {
+      setSelectedPost((prevPost) => ({
+        ...prevPost,
+        isLiked: !prevPost.isLiked,
+        likes: prevPost.isLiked ? prevPost.likes - 1 : prevPost.likes + 1,
+      }));
+    }
+  };
 
-  const renderItem = ({ item }) => (
-    <View style={styles.postContainer}>
-      <View style={styles.header}>
-        <Text style={styles.username}>User {item.id}</Text>
-      </View>
-      <Image
-        source={{ uri: item.imageUrl }}
-        style={styles.postImage}
-        resizeMode="cover"
-      />
-      <View style={styles.footer}>
-        <View style={styles.actionButtons}>
-          <TouchableOpacity onPress={() => toggleLike(item)}>
-            <Icon
-              name="heart"
-              size={24}
-              color={item.liked ? "#ED4956" : "#262626"}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => toggleCommentSection(item.id)}>
-            <Icon name="comment" size={24} color="#262626" />
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.likes}>{item.likes} Likes</Text>
-        {showComments[item.id] && (
-          <View style={styles.commentsSection}>
-            {item.comments.map((comment) => renderComment(comment, item.id))}
-            <View style={styles.addCommentContainer}>
-              <TextInput
-                style={styles.commentInput}
-                placeholder="Add a comment..."
-                value={commentText}
-                onChangeText={setCommentText}
-              />
-              <Button title="Post" onPress={() => addComment(item.id)} />
-            </View>
-          </View>
-        )}
-      </View>
-    </View>
-  );
+  const toggleCommentLike = (id) => {
+    setComments((prevComments) =>
+      prevComments.map((comment) =>
+        comment.id === id
+          ? {
+              ...comment,
+              isLiked: !comment.isLiked,
+              likes: comment.isLiked ? comment.likes - 1 : comment.likes + 1,
+            }
+          : comment
+      )
+    );
+  };
+
+  const toggleReplyLike = (commentId, replyId) => {
+    setComments((prevComments) =>
+      prevComments.map((comment) =>
+        comment.id === commentId
+          ? {
+              ...comment,
+              replies: comment.replies.map((reply) =>
+                reply.id === replyId
+                  ? {
+                      ...reply,
+                      isLiked: !reply.isLiked,
+                      likes: reply.isLiked ? reply.likes - 1 : reply.likes + 1,
+                    }
+                  : reply
+              ),
+            }
+          : comment
+      )
+    );
+  };
+
+  const handleKeyPress = (event) => {
+    if (event.nativeEvent.key === "Enter") {
+      replyTo ? addReply(replyTo) : addComment();
+    }
+  };
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+  };
+
+  const styles = createStyles(theme);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search..."
+          placeholderTextColor="#888"
+        />
+      </View>
       <FlatList
         data={posts}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={renderItem}
-        onEndReached={() => setPage((prev) => prev + 1)}
+        numColumns={3}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={styles.gridItem}
+            onPress={() => openModal(item)}
+          >
+            <Image source={{ uri: item.imageUrl }} style={styles.image} />
+          </TouchableOpacity>
+        )}
+        onEndReached={loadMorePosts}
         onEndReachedThreshold={0.5}
         ListFooterComponent={
-          loading ? <ActivityIndicator size="large" color="#0000ff" /> : null
+          isLoading && <ActivityIndicator size="large" color="#888" />
         }
-        refreshing={isRefreshing}
-        onRefresh={() => {
-          setIsRefreshing(true);
-          setPage(1);
-        }}
       />
-    </View>
+      {selectedPost && (
+        <Modal
+          visible={modalVisible}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setModalVisible(false)}
+        >
+          <TouchableWithoutFeedback onPress={() => setModalVisible(false)}>
+            <View style={styles.modalBackdrop}>
+              <TouchableWithoutFeedback>
+                <View style={styles.modalContainer}>
+                  <Image
+                    source={{ uri: selectedPost.imageUrl }}
+                    style={styles.modalImage}
+                  />
+                  <Text style={styles.modalLikes}>
+                    {selectedPost.likes} Likes
+                  </Text>
+                  <View style={styles.iconContainer}>
+                    <TouchableOpacity
+                      onPress={() => togglePostLike(selectedPost.id)}
+                      style={styles.iconSpacing}
+                    >
+                      <AntDesign
+                        name={selectedPost.isLiked ? "heart" : "hearto"}
+                        size={30}
+                        color={selectedPost.isLiked ? "red" : "black"}
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setReplyTo(null)}
+                      style={styles.iconSpacing}
+                    >
+                      <Ionicons
+                        name="chatbubble-outline"
+                        size={30}
+                        color="black"
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.iconSpacing}>
+                      <Feather name="send" size={30} color="black" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <FlatList
+                    data={comments}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item }) => (
+                      <View style={styles.comment}>
+                        <Text style={styles.commentText}>{item.text}</Text>
+                        <View style={styles.commentActions}>
+                          <TouchableOpacity
+                            onPress={() => toggleCommentLike(item.id)}
+                          >
+                            <FontAwesome
+                              name={item.isLiked ? "heart" : "heart-o"}
+                              size={20}
+                              color={item.isLiked ? "red" : "black"}
+                            />
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => setReplyTo(item.id)}>
+                            <Text style={styles.replyText}>Reply</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => deleteComment(item.id)}
+                          >
+                            <Text style={styles.deleteText}>Delete</Text>
+                          </TouchableOpacity>
+                        </View>
+                        {item.replies.map((reply) => (
+                          <View key={reply.id} style={styles.reply}>
+                            <Text style={styles.replyText}>{reply.text}</Text>
+                            <View style={styles.replyActions}>
+                              <TouchableOpacity
+                                onPress={() =>
+                                  toggleReplyLike(item.id, reply.id)
+                                }
+                              >
+                                <FontAwesome
+                                  name={reply.isLiked ? "heart" : "heart-o"}
+                                  size={20}
+                                  color={reply.isLiked ? "red" : "black"}
+                                />
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => deleteReply(item.id, reply.id)}
+                              >
+                                <Text style={styles.deleteText}>Delete</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                    style={styles.commentList}
+                  />
+
+                  <View style={styles.inputContainer}>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Add a comment..."
+                      value={newComment}
+                      onChangeText={setNewComment}
+                      onKeyPress={handleKeyPress}
+                    />
+                    <TouchableOpacity
+                      onPress={replyTo ? () => addReply(replyTo) : addComment}
+                    >
+                      <Text style={styles.postText}>
+                        {replyTo ? "Reply" : "Post"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
+      )}
+      <TouchableOpacity style={styles.themeToggle} onPress={toggleTheme}>
+        <Text style={styles.themeToggleText}>
+          Switch to {theme === "light" ? "Dark" : "Light"} Theme
+        </Text>
+      </TouchableOpacity>
+    </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  postContainer: {
-    marginBottom: 15,
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1,
-    elevation: 3,
-  },
-  header: {
-    padding: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#ddd",
-  },
-  username: {
-    fontWeight: "bold",
-  },
-  postImage: {
-    width: "100%",
-    height: width * 0.5, // Responsive height based on screen width
-    borderTopLeftRadius: 10,
-    borderTopRightRadius: 10,
-  },
-  footer: {
-    padding: 10,
-  },
-  actionButtons: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  likes: {
-    marginTop: 5,
-    fontWeight: "bold",
-  },
-  commentsSection: {
-    marginTop: 10,
-  },
-  comment: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 5,
-  },
-  commentContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  commentIcon: {
-    marginRight: 5,
-  },
-  commentText: {
-    flex: 1,
-  },
-  replyText: {
-    color: "blue",
-    marginLeft: 10,
-  },
-  replyContainer: {
-    marginLeft: 40,
-    marginTop: 5,
-    backgroundColor: "#f9f9f9",
-    padding: 10,
-    borderRadius: 5,
-  },
-  replyInput: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 5,
-    padding: 5,
-    marginBottom: 5,
-  },
-  addCommentContainer: {
-    flexDirection: "row",
-    marginTop: 10,
-  },
-  commentInput: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 5,
-    flex: 1,
-    padding: 5,
-    marginRight: 10,
-  },
-  reply: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginVertical: 5,
-  },
-  replyContent: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  replyIcon: {
-    marginRight: 5,
-  },
-  replyText: {
-    flex: 1,
-    marginLeft: 10,
-  },
-});
+const createStyles = (theme) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme === "light" ? "#fff" : "#121212",
+      paddingTop: 40,
+    },
+    searchContainer: {
+      padding: 10,
+      backgroundColor: theme === "light" ? "#f0f0f0" : "#2c2c2c",
+    },
+    searchInput: {
+      height: 40,
+      borderColor: "#ccc",
+      borderWidth: 1,
+      borderRadius: 5,
+      paddingHorizontal: 15,
+      color: theme === "light" ? "#000" : "#fff",
+    },
+    gridItem: {
+      flex: 1,
+      margin: 2,
+      aspectRatio: 1,
+    },
+    image: {
+      flex: 1,
+      borderRadius: 0,
+      margin: 1,
+    },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.7)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    modalContainer: {
+      width: "90%",
+      backgroundColor: theme === "light" ? "#fff" : "#1e1e1e",
+      borderRadius: 20,
+      padding: 20,
+    },
+    modalImage: {
+      width: "100%",
+      height: 300,
+      borderRadius: 20,
+      marginBottom: 10,
+    },
+    modalLikes: {
+      fontSize: 16,
+      fontWeight: "bold",
+      marginBottom: 10,
+      color: theme === "light" ? "#000" : "#fff",
+    },
+    iconContainer: {
+      flexDirection: "row",
+      marginBottom: 10,
+    },
+    iconSpacing: {
+      marginRight: 15,
+    },
+    comment: {
+      marginBottom: 10,
+      borderBottomColor: theme === "light" ? "#ccc" : "#555",
+      borderBottomWidth: 1,
+      paddingBottom: 5,
+    },
+    commentText: {
+      color: theme === "light" ? "#000" : "#fff",
+    },
+    commentActions: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginTop: 5,
+    },
+    replyText: {
+      color: "#007BFF",
+      marginLeft: 10,
+    },
+    deleteText: {
+      color: "red",
+      marginLeft: 10,
+    },
+    reply: {
+      marginLeft: 20,
+      marginTop: 5,
+    },
+    replyActions: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+    },
+    commentList: {
+      maxHeight: 200,
+      marginBottom: 10,
+    },
+    inputContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      borderTopColor: theme === "light" ? "#ccc" : "#555",
+      borderTopWidth: 1,
+      paddingTop: 10,
+    },
+    input: {
+      flex: 1,
+      padding: 10,
+      borderRadius: 20,
+      backgroundColor: theme === "light" ? "#f0f0f0" : "#2c2c2c",
+      color: theme === "light" ? "#000" : "#fff",
+    },
+    postText: {
+      color: "#007BFF",
+      marginLeft: 10,
+    },
+    themeToggle: {
+      alignItems: "center",
+      padding: 10,
+    },
+    themeToggleText: {
+      color: "#007BFF",
+      fontSize: 16,
+    },
+  });
 
 export default FeedScreen;

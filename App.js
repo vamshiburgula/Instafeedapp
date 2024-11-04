@@ -1,12 +1,10 @@
 import React from "react";
-import { NavigationContainer } from "@react-navigation/native";
+import { ThemeProvider } from "./components/ThemeContext";
+import FeedScreen from "./screens/FeedScreen";
+const App = () => (
+  <ThemeProvider>
+    <FeedScreen />
+  </ThemeProvider>
+);
 
-import TabNavigation from "./navigation/TabNavigation";
-
-export default function App() {
-  return (
-    <NavigationContainer>
-      <TabNavigation />
-    </NavigationContainer>
-  );
-}
+export default App;
