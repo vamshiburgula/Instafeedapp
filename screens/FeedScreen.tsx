@@ -15,8 +15,8 @@ import {
   NativeSyntheticEvent,
   TextInputKeyPressEventData,
 } from "react-native";
-import { Ionicons, AntDesign, Feather } from "@expo/vector-icons";
-import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
+import { Ionicons, AntDesign, Feather } from "@expo/vector-icons";//Like,comment,Share Icons
+import FontAwesome5 from "@expo/vector-icons/FontAwesome5";//Icons for Switching Themes
 
 interface Post {
   id: string;
@@ -47,7 +47,7 @@ const fetchPostsFromApi = async (
 ): Promise<Post[]> => {
   const simulatedPosts = Array.from({ length: pageSize }, (_, i) => ({
     id: (page * pageSize + i + 1).toString(),
-    imageUrl: `https://picsum.photos/300?random=${page * pageSize + i + 1}`,
+    imageUrl: `https://picsum.photos/300?random=${page * pageSize + i + 1}`,//Dummy data
     likes: Math.floor(Math.random() * 100),
     isLiked: false,
     comments: [],
@@ -67,12 +67,12 @@ const FeedScreen: React.FC = () => {
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
-  const pageSize = 9;
+  const pageSize = 9;//9 Posts per page initially
 
   useEffect(() => {
     loadMorePosts();
   }, []);
-
+//Pagination....
   const loadMorePosts = async () => {
     if (isLoading || isEndReached) return;
 
@@ -96,16 +96,19 @@ const FeedScreen: React.FC = () => {
     setSelectedPost(post);
     setModalVisible(true);
   };
-
+  
+//Adding Comment to a Selected Post
+//Need to add new features like adding time stamp to the comments i.e When a particular user created the comment/posted the comment
   const addComment = () => {
     if (newComment.trim() && selectedPost) {
       const comment: Comment = {
         id: Date.now().toString(),
         text: newComment.trim(),
-        likes: 0,
+        likes: 0,//Likes for a comment/Reply will be 0 initially
         isLiked: false,
         replies: [],
       };
+      //Displaying Comments of a Selected Post
       const updatedPost = {
         ...selectedPost,
         comments: [...selectedPost.comments, comment],
@@ -117,6 +120,7 @@ const FeedScreen: React.FC = () => {
     }
   };
 
+  //Reply Functionality
   const addReply = (commentId: string) => {
     if (newComment.trim() && selectedPost) {
       const reply: Reply = {
