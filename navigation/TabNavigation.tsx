@@ -6,7 +6,7 @@ import FeedScreen from "../screens/FeedScreen";
 
 const Tab = createBottomTabNavigator();
 
-export default function TabNavigation() {
+const TabNavigation: React.FC = () => {
   return (
     <Tab.Navigator>
       <Tab.Screen name="Home" component={HomeScreen} />
@@ -14,4 +14,6 @@ export default function TabNavigation() {
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
-}
+};
+
+export default TabNavigation;

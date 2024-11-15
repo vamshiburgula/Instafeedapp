@@ -1,11 +1,12 @@
-// HomeScreen.js
 import React from "react";
 import { View, Text } from "react-native";
 
-export default function HomeScreen() {
+const ProfileScreen: React.FC = () => {
   return (
     <View>
-      <Text>Home Screen</Text>
+      <Text>Profile Screen</Text>
     </View>
   );
-}
+};
+
+export default ProfileScreen;
